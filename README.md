@@ -1,0 +1,2 @@
+# photoai
+kiểm tra lỗi
