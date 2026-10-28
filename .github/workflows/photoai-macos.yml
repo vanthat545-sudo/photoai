@@ -2,13 +2,13 @@ name: PhotoAI macOS M1 validation
 on:
   push:
     branches: [ci/macos-v07184]
-    paths: ['.github/workflows/photoai-macos.yml', 'PhotoAI-Studio-v0.7.18.4-Mac-Finder-TEST.zip']
+    paths: ['.github/workflows/photoai-macos.yml', 'PhotoAI-Studio-v0.7.18.4-Mac-Finder-TEST.zip', 'patches/**']
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   macos:
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 90
     env:
       CARGO_BUILD_JOBS: 2
@@ -26,6 +26,12 @@ jobs:
           echo "SOURCE=$GITHUB_WORKSPACE/package/Cai-PhotoAI-Studio.app/Contents/Resources/Source" >> "$GITHUB_ENV"
           { sw_vers; uname -m; xcodebuild -version; } | tee results/macos.txt
           test "$(uname -m)" = arm64
+      - name: Apply Studio UI corrections
+        run: |
+          set -euo pipefail
+          cd "$SOURCE"
+          git apply --check "$GITHUB_WORKSPACE/patches/studio-ui.patch"
+          git apply "$GITHUB_WORKSPACE/patches/studio-ui.patch"
       - name: Install required Rust
         run: |
           rustup toolchain install 1.95.0 --profile minimal
