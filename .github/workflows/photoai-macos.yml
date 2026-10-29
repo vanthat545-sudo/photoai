@@ -2,7 +2,7 @@ name: PhotoAI macOS M1 validation
 on:
   push:
     branches: [ci/macos-v07184]
-    paths: ['.github/workflows/photoai-macos.yml', 'PhotoAI-Studio-v0.7.18.4-Mac-Finder-TEST.zip', 'patches/**']
+    paths: ['.github/workflows/photoai-macos.yml', 'PhotoAI-Studio-v0.7.18.4-Mac-Finder-TEST.zip', 'patches/**', 'ci/**']
   workflow_dispatch:
 permissions:
   contents: read
@@ -82,6 +82,12 @@ jobs:
           if [ -f "$SOURCE/target/debug/PhotoAIVision" ]; then
             cp "$SOURCE/target/debug/PhotoAIVision" results/
           fi
+      - name: Write feature evidence report
+        if: always()
+        run: python3 ci/feature_report.py
+      - name: Package internal standalone app
+        if: ${{ steps.engine.outcome == 'success' && steps.ui.outcome == 'success' && steps.build.outcome == 'success' && steps.snapshot.outcome == 'success' }}
+        run: python3 ci/package_validation.py
       - name: Upload logs, UI capture and available binaries
         if: always()
         uses: actions/upload-artifact@v4
