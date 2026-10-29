@@ -149,7 +149,7 @@
                      0 => {
 -                        ui.heading("Chỉnh ảnh tự động · công cụ thực tế");
 -                        ui.small("Chọn chức năng để xử lý layer ảnh. Hoàn tác bằng ⌘Z.");
-+                        ui.heading("Tự động / Làm đẹp");
++                        ui.heading("Retouch Auto");
                          let actions = [
                              ("Tối ưu", "sparkles", "auto", true),
                              ("Chân dung", "tool-face", "portrait", true),
@@ -234,8 +234,8 @@
 -                        ui.separator();
 -                        ui.small("Các công cụ AI tạo sinh chưa có mô hình xử lý:");
 +                    }
-+                    2 | 3 => {
-+                        ui.heading("Kho màu · preset Việt Nam");
++                    2 => {
++                        ui.heading("Preset màu");
 +                        photo_ai_studio_presets(app, ui, has_pixels, strength);
 +                        ui.collapsing("Chỉnh màu nâng cao", |ui| {
 +                            photo_ai_pro_grade_panel(app, ui, has_pixels, strength);
