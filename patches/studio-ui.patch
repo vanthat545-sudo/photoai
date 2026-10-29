@@ -105,7 +105,8 @@
 @@ -2182,7 +2191,7 @@
          ui.horizontal(|ui| {
              ui.spacing_mut().item_spacing.x=4.0;
-             let cell=((ui.available_width()-8.0)/3.0).max(72.0);
+-            let cell=((ui.available_width()-18.0)/5.0).max(56.0);
++            let cell=((ui.available_width()-8.0)/3.0).max(72.0);
 -            for (index, title) in ["Tự động", "Chân dung", "Làm đẹp", "Màu sắc", "Hiệu ứng"].iter().enumerate() {
 +            for (index, title) in ["Retouch Auto", "Sáng tạo", "Preset màu"].iter().enumerate() {
                  let current=tab==index;
