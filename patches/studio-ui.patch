@@ -105,7 +105,7 @@
 @@ -2182,7 +2191,7 @@
          ui.horizontal(|ui| {
              ui.spacing_mut().item_spacing.x=4.0;
-             let cell=((ui.available_width()-18.0)/5.0).max(56.0);
+             let cell=((ui.available_width()-8.0)/3.0).max(72.0);
 -            for (index, title) in ["Tự động", "Chân dung", "Làm đẹp", "Màu sắc", "Hiệu ứng"].iter().enumerate() {
 +            for (index, title) in ["Retouch Auto", "Sáng tạo", "Preset màu"].iter().enumerate() {
                  let current=tab==index;
@@ -293,7 +293,7 @@
                      });
 @@ -7675,12 +7671,18 @@
          ctx.data_mut(|d|d.insert_temp(egui::Id::new("photo-ai-studio-mode"),true));
-         for tab in 0usize..5 {
+         for tab in 0usize..3 {
              ctx.data_mut(|d|d.insert_temp(egui::Id::new("photo-ai-studio-tab"),tab));
 -            let out=ctx.run_ui(egui::RawInput::default(),|ui|{
 +            let mut out=ctx.run_ui(egui::RawInput::default(),|ui|{
