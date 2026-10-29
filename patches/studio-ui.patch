@@ -127,7 +127,7 @@
              if let Some((command, params)) = unlock {
 -                ui.colored_label(Color32::from_rgb(250, 198, 93),
 -                    "Lớp ảnh đang khóa. Mở khóa để các nút Son môi và Xóa mụn hoạt động.");
-+
++                ui.colored_label(Color32::from_rgb(250, 198, 93), "Lớp ảnh đang khóa. Hãy mở khóa trước khi chỉnh sửa.");
                  if ui.button("🔓 Mở khóa lớp ảnh để chỉnh sửa").clicked() {
                      match app.run(&command, params) {
                          Ok(_) => { app.ui.status = "Đã mở khóa lớp ảnh. Có thể chọn màu son và xóa mụn.".into(); app.ui.status_error = false; }
