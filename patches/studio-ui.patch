@@ -234,7 +234,7 @@
 -                        ui.separator();
 -                        ui.small("Các công cụ AI tạo sinh chưa có mô hình xử lý:");
 +                    }
-+                    2 => {
++                    2 | 3 => {
 +                        ui.heading("Kho màu · preset Việt Nam");
 +                        photo_ai_studio_presets(app, ui, has_pixels, strength);
 +                        ui.collapsing("Chỉnh màu nâng cao", |ui| {
