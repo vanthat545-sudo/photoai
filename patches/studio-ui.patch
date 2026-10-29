@@ -498,19 +498,19 @@
 +        let app = PhotocraftApp::new(photocraft_engine::Session::new(), crate::Services::default());
 +        let mut h = router_harness(app);
 +        assert!(h.query_by_label("Mở ảnh để bắt đầu chỉnh sửa.").is_some());
-+        assert!(h.query_by_label("Độ nhạy").is_none());
++        assert!(h.query_by_role_and_label(egui::accesskit::Role::Slider, "Độ nhạy").is_none());
 +        assert!(h.query_by_label("Màu trang điểm").is_none());
 +        h.get_by_label("Xóa mụn và chăm sóc da").click();
 +        h.run_steps(20);
-+        assert!(h.query_by_label("Độ nhạy").is_some());
++        assert!(h.query_by_role_and_label(egui::accesskit::Role::Slider, "Độ nhạy").is_some());
 +        assert!(h.query_by_label("Màu trang điểm").is_none());
 +        h.get_by_label("Xóa mụn và chăm sóc da").click();
 +        h.run_steps(20);
-+        assert!(h.query_by_label("Độ nhạy").is_none());
++        assert!(h.query_by_role_and_label(egui::accesskit::Role::Slider, "Độ nhạy").is_none());
 +        h.get_by_label("Son môi và trang điểm").click();
 +        h.run_steps(20);
 +        assert!(h.query_by_label("Màu trang điểm").is_some());
-+        assert!(h.query_by_label("Độ nhạy").is_none());
++        assert!(h.query_by_role_and_label(egui::accesskit::Role::Slider, "Độ nhạy").is_none());
 +        assert!(h.state().session.active().is_none(), "view changes never create a document");
 +    }
 +
