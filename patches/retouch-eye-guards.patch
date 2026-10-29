@@ -1,0 +1,66 @@
+--- a/crates/engine/src/retouch_cmds/ai_auto_retouch.rs
++++ b/crates/engine/src/retouch_cmds/ai_auto_retouch.rs
+@@ -168,6 +168,20 @@
+     fn default() -> Self { Self { lips: true, eyes: true } }
+ }
+ 
++/// An outlying landmark must not disable the missing-eye safety band.
++/// Reject it rather than clipping it into a plausible-looking eye rectangle.
++fn plausible_eye(face: Rect, eye: Rect) -> bool {
++    if eye.is_empty() || eye.x0 < face.x0 || eye.y0 < face.y0
++        || eye.x1 > face.x1 || eye.y1 > face.y1 { return false; }
++    let w = face.width().max(1) as f64;
++    let h = face.height().max(1) as f64;
++    let cx = ((eye.x0 as f64 + eye.x1 as f64) * 0.5 - face.x0 as f64) / w;
++    let cy = ((eye.y0 as f64 + eye.y1 as f64) * 0.5 - face.y0 as f64) / h;
++    (0.05..=0.95).contains(&cx) && (0.10..=0.65).contains(&cy)
++        && eye.width() as f64 / w <= 0.50
++        && eye.height() as f64 / h <= 0.35
++}
++
+ /// Use a padded **rectangle**, not an ellipse: an ellipse excludes the lip corners,
+ /// allowing a brush footprint to blur the vermilion border even when its centre is on skin.
+ fn lip_guard(r: Rect, x: i32, y: i32) -> bool {
+@@ -186,7 +200,9 @@
+     if guards.eyes {
+         if zone.left_eye.is_some_and(|r| eye_protection(r, x, y)) || zone.right_eye.is_some_and(|r| eye_protection(r, x, y)) { return false; }
+         // When landmark detection is incomplete, conservatively exclude the eye/brow band.
+-        if (zone.left_eye.is_none() || zone.right_eye.is_none()) && (0.15..=0.57).contains(&local_y) { return false; }
++        let landmarks_valid = zone.left_eye.is_some_and(|r| plausible_eye(zone.rect, r))
++            && zone.right_eye.is_some_and(|r| plausible_eye(zone.rect, r));
++        if !landmarks_valid && (0.15..=0.57).contains(&local_y) { return false; }
+     }
+     if guards.lips {
+         // Trust an actual face-relative mouth landmark with an enlarged rectangular
+@@ -553,6 +569,31 @@
+ mod tests {
+     use super::*;
+     #[test]
++    fn outlying_eye_landmarks_keep_the_fallback_band_protected() {
++        let mut zone = Zone { rect: Rect::new(0,0,200,240),
++            left_eye: Some(Rect::new(10,190,30,200)),
++            right_eye: Some(Rect::new(160,190,180,200)), lips: None };
++        // Previously both Some values disabled the fallback despite being on the chin.
++        assert!(!eligible_skin(&zone, 100, 90));
++        assert!(!safe_healing_dab(&zone, 100, 90, FeatureGuards::default()));
++        assert!(eligible_skin(&zone, 45, 150), "safe cheek remains editable");
++        zone.left_eye = Some(Rect::new(-30,60,-10,75));
++        zone.right_eye = Some(Rect::new(210,60,230,75));
++        assert!(!eligible_skin(&zone, 100, 90));
++    }
++
++    #[test]
++    fn plausible_eye_landmarks_preserve_skin_between_the_eyes() {
++        let face = Rect::new(0,0,200,240);
++        let left = Rect::new(30,70,55,82);
++        let right = Rect::new(145,70,170,82);
++        assert!(plausible_eye(face, left));
++        assert!(!plausible_eye(face, Rect::EMPTY));
++        let zone = Zone {rect:face,left_eye:Some(left),right_eye:Some(right),lips:None};
++        assert!(eligible_skin(&zone,100,90), "valid detections must not blanket-block skin");
++    }
++
++    #[test]
+     fn zero_strength_does_not_require_vision() {
+         let mut s=Session::new();
+         s.execute("file.new",json!({"width":80,"height":80})).unwrap();

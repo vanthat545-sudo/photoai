@@ -32,6 +32,8 @@ jobs:
           cd "$SOURCE"
           git apply --check "$GITHUB_WORKSPACE/patches/studio-ui.patch"
           git apply "$GITHUB_WORKSPACE/patches/studio-ui.patch"
+          git apply --check "$GITHUB_WORKSPACE/patches/retouch-eye-guards.patch"
+          git apply "$GITHUB_WORKSPACE/patches/retouch-eye-guards.patch"
       - name: Install required Rust
         run: |
           rustup toolchain install 1.95.0 --profile minimal
