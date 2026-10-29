@@ -1,6 +1,6 @@
 --- a/crates/engine/src/retouch_cmds/ai_auto_retouch.rs
 +++ b/crates/engine/src/retouch_cmds/ai_auto_retouch.rs
-@@ -168,6 +168,20 @@
+@@ -168,6 +168,31 @@
      fn default() -> Self { Self { lips: true, eyes: true } }
  }
  
@@ -18,21 +18,32 @@
 +        && eye.height() as f64 / h <= 0.35
 +}
 +
++/// Two individually plausible boxes must also describe two separate eyes.
++fn plausible_eye_pair(face: Rect, left: Rect, right: Rect) -> bool {
++    if !plausible_eye(face, left) || !plausible_eye(face, right) { return false; }
++    let dx = ((left.x0 as f64 + left.x1 as f64)
++        - (right.x0 as f64 + right.x1 as f64)).abs() * 0.5;
++    let dy = ((left.y0 as f64 + left.y1 as f64)
++        - (right.y0 as f64 + right.y1 as f64)).abs() * 0.5;
++    dx >= face.width() as f64 * 0.15
++        && dy <= face.height() as f64 * 0.20
++}
++
  /// Use a padded **rectangle**, not an ellipse: an ellipse excludes the lip corners,
  /// allowing a brush footprint to blur the vermilion border even when its centre is on skin.
  fn lip_guard(r: Rect, x: i32, y: i32) -> bool {
-@@ -186,7 +200,9 @@
+@@ -186,7 +211,9 @@
      if guards.eyes {
          if zone.left_eye.is_some_and(|r| eye_protection(r, x, y)) || zone.right_eye.is_some_and(|r| eye_protection(r, x, y)) { return false; }
          // When landmark detection is incomplete, conservatively exclude the eye/brow band.
 -        if (zone.left_eye.is_none() || zone.right_eye.is_none()) && (0.15..=0.57).contains(&local_y) { return false; }
-+        let landmarks_valid = zone.left_eye.is_some_and(|r| plausible_eye(zone.rect, r))
-+            && zone.right_eye.is_some_and(|r| plausible_eye(zone.rect, r));
++        let landmarks_valid = zone.left_eye.zip(zone.right_eye)
++            .is_some_and(|(left, right)| plausible_eye_pair(zone.rect, left, right));
 +        if !landmarks_valid && (0.15..=0.57).contains(&local_y) { return false; }
      }
      if guards.lips {
          // Trust an actual face-relative mouth landmark with an enlarged rectangular
-@@ -553,6 +569,31 @@
+@@ -553,6 +580,38 @@
  mod tests {
      use super::*;
      #[test]
@@ -55,9 +66,16 @@
 +        let left = Rect::new(30,70,55,82);
 +        let right = Rect::new(145,70,170,82);
 +        assert!(plausible_eye(face, left));
++        assert!(plausible_eye_pair(face, left, right));
++        assert!(plausible_eye_pair(face, right, left), "landmark names may be mirrored");
++        assert!(!plausible_eye_pair(face, left, left), "duplicate eyes require fallback");
++        assert!(!plausible_eye_pair(face, left, Rect::new(35,72,60,84)));
++        assert!(!plausible_eye_pair(face, left, Rect::new(145,125,170,137)));
 +        assert!(!plausible_eye(face, Rect::EMPTY));
 +        let zone = Zone {rect:face,left_eye:Some(left),right_eye:Some(right),lips:None};
 +        assert!(eligible_skin(&zone,100,90), "valid detections must not blanket-block skin");
++        let duplicate = Zone {right_eye:Some(left), ..zone};
++        assert!(!eligible_skin(&duplicate,100,90), "duplicate eyes keep the safety band");
 +    }
 +
 +    #[test]
