@@ -1,0 +1,32 @@
+name: PhotoAI packaged app validation
+on:
+  push:
+    branches: [ci/macos-v07184]
+    paths: ['.github/workflows/photoai-standalone.yml', 'ci/standalone_smoke.py']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  standalone:
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: photoai-v07184-macos-arm64-results
+          run-id: 40887941833
+          github-token: ${{ github.token }}
+          path: validated-build
+      - name: Unpack previously validated app
+        run: |
+          mkdir -p results
+          ditto -x -k validated-build/PhotoAI-Retouch-Validation-Mac-ARM64.zip results
+      - name: Run packaged app import edit undo export checks
+        run: python3 ci/standalone_smoke.py results/PhotoAI-Retouch-Validation.app
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: photoai-standalone-evidence
+          path: results/smoke/
+          retention-days: 14
