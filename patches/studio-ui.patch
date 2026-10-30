@@ -1,0 +1,586 @@
+--- a/crates/ui-egui/src/panels.rs
++++ b/crates/ui-egui/src/panels.rs
+@@ -1826,7 +1826,6 @@
+ /// Apply is explicit (not on every slider drag): one edit = one undo step.
+ fn photo_ai_pro_hsl_panel(app: &mut PhotocraftApp, ui: &mut egui::Ui, has_pixels: bool, strength: f32) {
+     ui.collapsing("HSL 6 MÀU · SẮC ĐỘ / BÃO HOÀ / ĐỘ SÁNG", |ui| {
+-        ui.small("Điều chỉnh sáu dải màu, xem kết quả sau khi bấm Áp dụng. Đây là bộ HSL xấp xỉ (không phải Curves hay điều chỉnh không phá huỷ).");
+         let hues = [("red", "Đỏ"), ("yellow", "Vàng"), ("green", "Xanh lá"),
+             ("cyan", "Xanh ngọc"), ("blue", "Xanh lam"), ("magenta", "Tím hồng")];
+         let mut params = json!({"effect":"proHsl", "strength":strength, "target":"pixels"});
+@@ -1869,7 +1868,6 @@
+             ui.add(crate::icons::image("sliders-horizontal", 21.0, Color32::from_rgb(113, 193, 255)));
+             ui.strong("BẢNG CHỈNH MÀU CHUYÊN NGHIỆP");
+         });
+-        ui.small("Chỉnh độc lập từng thông số, rồi bấm Áp dụng. Mỗi lần áp dụng có thể hoàn tác bằng ⌘Z.");
+         // These values are stored in UI state only, never written to user files.
+         let fields: [(&str, &str, f32, f32); 13] = [
+             ("exposure", "Phơi sáng (EV)", -2.0, 2.0),
+@@ -1917,7 +1915,6 @@
+                     ui.data_mut(|d| d.insert_temp(id, vals[i]));
+                 }
+             }
+-            ui.small("Ba thanh này chỉnh độ bão hoà theo màu RGB trội, chưa phải đường cong HSL toàn phần.");
+         });
+         ui.horizontal_wrapped(|ui| {
+             if ui.add_enabled(has_pixels, egui::Button::new("✓ Áp dụng chỉnh màu Pro")).clicked() {
+@@ -1936,7 +1933,6 @@
+                 }
+             }
+         });
+-        ui.small("Đặt lại thanh chỉ xoá các giá trị điều khiển. Dùng ⌘Z để hoàn tác ảnh đã chỉnh.");
+     });
+     ui.add_space(4.0);
+     ui.group(|ui| {
+@@ -1952,7 +1948,6 @@
+         if ui.add_enabled(has_pixels, egui::Button::new("Áp dụng tăng nét")).clicked() {
+             photo_ai_apply_effect(app, json!({"effect":"proSharpen","amount":amount,"strength":strength,"target":"pixels"}));
+         }
+-        ui.small("Tăng độ nét chi tiết trên vùng chọn hoặc cả layer. Mức cao có thể gây viền sáng.");
+     });
+ }
+ 
+@@ -2005,8 +2000,8 @@
+                 ui.separator();
+                 for (icon, title, tab) in [
+                     ("sliders-horizontal", "Chỉnh sửa", 0usize),
+-                    ("palette", "Bộ lọc", 3usize),
+-                    ("sparkles", "Hiệu ứng", 4usize),
++                    ("palette", "Bộ lọc", 2usize),
++                    ("sparkles", "Hiệu ứng", 1usize),
+                 ] {
+                     let id=egui::Id::new("photo-ai-studio-tab");
+                     let active=ui.data(|d| d.get_temp::<usize>(id)).unwrap_or(0)==tab;
+@@ -2106,7 +2101,6 @@
+             });
+     });
+     ui.data_mut(|d| d.insert_temp(id, collection));
+-    ui.small("120 biến thể màu khác nhau trên nền 25 tông; không phải 120 tệp LUT .cube độc lập.");
+     let selection_id = egui::Id::new("photo-ai-studio-preset-selection");
+     let mut selection = ui.data(|d| d.get_temp::<usize>(selection_id)).unwrap_or(0).min(11);
+     egui::ScrollArea::vertical().id_salt("photo-ai-studio-colour-list")
+@@ -2134,34 +2128,49 @@
+         egui::Window::new("AI Router · Photo AI")
+             .id(egui::Id::new("photo-ai-studio-floating-window"))
+             .default_pos(pos2(620.0, 85.0))
+-            .default_size(vec2(540.0, 620.0))
+-            .min_width(420.0)
++            .default_size(vec2(350.0, 560.0))
++            .min_width(320.0)
+             .resizable(true).movable(true).collapsible(true)
+             .show(ui.ctx(), |ui| photo_ai_studio_body(app, ui));
+         return;
+     }
+     let t = Tokens::get(ui.ctx());
+     crate::direction::end_panel("photo-ai-studio-dock")
+-        .resizable(true).default_size(510.0).size_range(420.0..=630.0)
++        .resizable(true).default_size(350.0).size_range(320.0..=420.0)
+         .frame(egui::Frame::NONE.fill(t.dock).inner_margin(egui::Margin::symmetric(12, 12)))
+         .show(ui, |ui| photo_ai_studio_body(app, ui));
+ }
+ 
++fn photo_ai_router_mark(ui: &egui::Ui, rect: Rect) {
++    let id = egui::Id::new("photo-ai-router-mark-texture");
++    let cached = ui.ctx().data(|d| d.get_temp::<egui::TextureHandle>(id));
++    let texture = cached.or_else(|| {
++        let bytes = include_bytes!("../../../assets/icons/ai-router-hacker-3d.png");
++        let decoded = photocraft_codecs::decode(bytes).ok()?;
++        let rgba = decoded.convert(photocraft_codecs::ChannelLayout::Rgba, photocraft_codecs::SampleType::U8);
++        let size = [rgba.width() as usize, rgba.height() as usize];
++        let image = egui::ColorImage::from_rgba_unmultiplied(size, rgba.data());
++        let texture = ui.ctx().load_texture("photo-ai-router-mark", image, egui::TextureOptions::LINEAR);
++        ui.ctx().data_mut(|d| d.insert_temp(id, texture.clone()));
++        Some(texture)
++    });
++    if let Some(texture) = texture {
++        ui.painter().image(texture.id(), rect,
++            Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
++    }
++}
++
+ fn photo_ai_studio_body(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
+     ui.vertical(|ui| {
+-        ui.horizontal(|ui| {
++        ui.horizontal_wrapped(|ui| {
+             let (icon_area, _) = ui.allocate_exact_size(vec2(56.0, 56.0), Sense::hover());
+             ui.painter().rect_filled(icon_area, CornerRadius::same(12), Color32::from_rgb(69, 53, 21));
+             ui.painter().rect_stroke(icon_area, CornerRadius::same(12),
+                 Stroke::new(1.0, Color32::from_rgb(206, 155, 42)), StrokeKind::Inside);
+-            egui::Image::from_bytes("bytes://photo-ai-router-hacker-3d.png",
+-                include_bytes!("../../../assets/icons/ai-router-hacker-3d.png").as_slice())
+-                .fit_to_exact_size(vec2(54.0, 54.0))
+-                .paint_at(ui, Rect::from_center_size(icon_area.center(), vec2(54.0, 54.0)));
++            photo_ai_router_mark(ui, Rect::from_center_size(icon_area.center(), vec2(54.0, 54.0)));
+             ui.vertical(|ui| {
+                 ui.heading(RichText::new("AI ROUTER").strong().size(18.0).color(Color32::from_rgb(255, 220, 134)));
+-                ui.small(RichText::new("PHOTO AI STUDIO · CHỈNH ẢNH THẬT")
+-                    .color(Color32::from_rgb(144, 186, 202)));
++
+             });
+             ui.with_layout(crate::direction::trailing(), |ui| {
+                 let detached_id = egui::Id::new("photo-ai-studio-detached");
+@@ -2181,8 +2190,8 @@
+         let mut tab = ui.data(|d| d.get_temp::<usize>(tab_key)).unwrap_or(0).min(4);
+         ui.horizontal(|ui| {
+             ui.spacing_mut().item_spacing.x=4.0;
+-            let cell=((ui.available_width()-18.0)/5.0).max(56.0);
+-            for (index, title) in ["Tự động", "Chân dung", "Làm đẹp", "Màu sắc", "Hiệu ứng"].iter().enumerate() {
++            let cell=((ui.available_width()-8.0)/3.0).max(72.0);
++            for (index, title) in ["Retouch Auto", "Sáng tạo", "Preset màu"].iter().enumerate() {
+                 let current=tab==index;
+                 let fill=if current {Color32::from_rgb(0, 111, 215)} else {Color32::from_rgb(23, 43, 60)};
+                 let stroke=if current {Color32::from_rgb(56, 196, 255)} else {Color32::from_rgb(44, 72, 92)};
+@@ -2192,8 +2201,7 @@
+         });
+         ui.data_mut(|d| d.insert_temp(tab_key, tab));
+         ui.separator();
+-        ui.small(RichText::new("MỞ ẢNH → CHỌN CÔNG CỤ → ÁP DỤNG → SO SÁNH / ⌘Z")
+-            .color(Color32::from_rgb(122, 209, 231)));
++
+         let selected = app.session.active().is_some_and(|st| st.doc.selection.is_some());
+         let pixel_target = crate::canvas::paint_target(app) == json!("pixels");
+         let raster = app.session.active().is_some_and(|st| st.active_layer.and_then(|id| st.doc.layer(id))
+@@ -2213,17 +2221,27 @@
+                         &json!({"layer": id.0})))
+             });
+             if let Some((command, params)) = unlock {
+-                ui.colored_label(Color32::from_rgb(250, 198, 93),
+-                    "Lớp ảnh đang khóa. Mở khóa để các nút Son môi và Xóa mụn hoạt động.");
++                ui.colored_label(Color32::from_rgb(250, 198, 93), "Lớp ảnh đang khóa. Hãy mở khóa trước khi chỉnh sửa.");
+                 if ui.button("🔓 Mở khóa lớp ảnh để chỉnh sửa").clicked() {
+                     match app.run(&command, params) {
+                         Ok(_) => { app.ui.status = "Đã mở khóa lớp ảnh. Có thể chọn màu son và xóa mụn.".into(); app.ui.status_error = false; }
+                         Err(error) => { app.ui.status = format!("Không mở được khóa ảnh: {error}"); app.ui.status_error = true; }
+                     }
+                 }
++            } else if app.session.active().is_none() {
++                ui.label("Mở ảnh để bắt đầu chỉnh sửa.");
++                if ui.button("Mở ảnh").clicked() {
++                    if let Err(error) = app.open_dialog_file() {
++                        app.ui.status = format!("Không mở được ảnh: {error}");
++                        app.ui.status_error = true;
++                    }
++                }
++            } else if !pixel_target {
++                ui.colored_label(ui.visuals().warn_fg_color,
++                    "Đang chọn mặt nạ hoặc kênh màu. Chọn thumbnail lớp ảnh trong Layers để chỉnh pixel.");
+             } else {
+-                ui.colored_label(Color32::from_rgb(250, 198, 93),
+-                    "Mở ảnh, chọn lớp pixel rồi dùng công cụ. Nếu đang chọn mask, hãy chuyển về lớp ảnh.");
++                ui.colored_label(ui.visuals().warn_fg_color,
++                    "Chọn một lớp pixel để dùng Router. Công cụ gốc vẫn có trong Chuyên sâu.");
+             }
+         }
+         ui.separator();
+@@ -2233,8 +2251,7 @@
+                 crate::photo_ai_feedback::result_panel(app, ui);
+                 match tab {
+                     0 => {
+-                        ui.heading("Chỉnh ảnh tự động · công cụ thực tế");
+-                        ui.small("Chọn chức năng để xử lý layer ảnh. Hoàn tác bằng ⌘Z.");
++                        ui.heading("Retouch Auto");
+                         let actions = [
+                             ("Tối ưu", "sparkles", "auto", true),
+                             ("Chân dung", "tool-face", "portrait", true),
+@@ -2245,119 +2262,105 @@
+                             ("Tương phản", "contrast", "autoContrast", false),
+                             ("Đều tông", "sliders-horizontal", "autoTone", false),
+                         ];
+-                        let width=((ui.available_width()-18.0)/4.0).max(68.0);
++                        let width=((ui.available_width()-5.0)/2.0).max(68.0);
+                         egui::Grid::new("photo-ai-auto-feature-grid")
+-                            .num_columns(4).spacing(vec2(5.0, 5.0)).show(ui, |ui| {
++                            .num_columns(2).spacing(vec2(5.0, 5.0)).show(ui, |ui| {
+                                 for (i,(label,icon,effect,automation)) in actions.iter().enumerate() {
+                                     if photo_ai_tile(ui,icon,label,has_pixels,width) {
+                                         if *automation {photo_ai_apply_automation(app,effect,strength)}
+                                         else {photo_ai_apply_effect(app,json!({"effect":effect,"strength":strength,"target":"pixels"}))}
+                                     }
+-                                    if (i+1)%4==0 {ui.end_row();}
++                                    if (i+1)%2==0 {ui.end_row();}
+                                 }
+                             });
+                         ui.separator();
+-                        ui.strong("CHÂN DUNG · TỰ ĐỘNG");
+-                        ui.small("Xóa mụn và tái tạo da cục bộ vẫn cần kiểm tra kết quả ảnh thật. Các nút không dùng mô hình AI tạo sinh.");
++                        ui.strong("Chân dung");
+                         ui.add_space(4.0);
+                         if ui.add_enabled(has_pixels,egui::Button::new("✦ Tối ưu ảnh hiện tại").min_size(vec2(ui.available_width(), 34.0))).clicked() {
+                             photo_ai_apply_automation(app,"auto",strength);
+                         }
++
++                        ui.collapsing("Xóa mụn và chăm sóc da", |ui| {
++                            ui.group(|ui| {
++                                ui.strong("Xóa mụn");
++                                let key = egui::Id::new("photo-ai-studio-acne-sensitivity");
++                                let mut sensitivity = ui.data(|d| d.get_temp::<f32>(key)).unwrap_or(88.0);
++                                ui.add(egui::Slider::new(&mut sensitivity, 55.0..=100.0)
++                                    .text("Độ nhạy"));
++                                ui.data_mut(|d| d.insert_temp(key, sensitivity));
++                                if ui.add_enabled(has_pixels,
++                                    egui::Button::new("✦ Xóa mụn AI (giữ mắt / môi)")).clicked() {
++                                    crate::photo_ai_feedback::run(app, "paint.aiAutoRetouch",
++                                        json!({"mode":"skinOnly","blemishOnly":true,
++                                            "sensitivity":sensitivity,"strength":strength,
++                                            "protectLips":true,"protectEyes":true,"target":"pixels"}),
++                                        "Xóa mụn an toàn");
++                                }
++                            });
++                            photo_ai_tile_group(app, ui, "DA VÀ MẮT", &[
++                                ("Cọ xóa mụn", "tool-spot", "spotBrush"),
++                                ("Mịn da", "tool-smooth", "skinSmooth"),
++                                ("Giảm thâm", "tool-undereye", "underEye"),
++                                ("Làm sáng", "tool-bright", "brighten"),
++                            ], selected, has_pixels, strength, "#B43B59");
++                        });
++                        ui.collapsing("Tạo hình khuôn mặt", |ui| {
++                            ui.small("Khoanh vùng cần chỉnh bằng Lasso trước khi áp dụng.");
++                            photo_ai_tile_group(app, ui, "TẠO HÌNH KHUÔN MẶT", &[
++                                ("Thon mặt", "tool-face", "faceSlim"),
++                                ("Đánh khối", "tool-contour", "contour"),
++                                ("Nếp mí", "tool-eyelid", "eyelid"),
++                            ], selected, has_pixels, strength, "#B43B59");
++
++                        });
++                        let lip_id = egui::Id::new("photo-ai-studio-lip-colour");
++                        let mut lip = ui.data(|d| d.get_temp::<[u8;3]>(lip_id)).unwrap_or([180,59,89]);
++                        ui.collapsing("Son môi và trang điểm", |ui| {
++                            ui.horizontal(|ui| {
++                                ui.label("Màu trang điểm");
++                                crate::widgets::color_edit_button_srgb(ui, &mut lip);
++                            });
++                            ui.data_mut(|d| d.insert_temp(lip_id, lip));
++                            ui.horizontal_wrapped(|ui| {
++                                for (label, rgb) in [
++                                    ("Đỏ", [197, 36, 61]), ("Hồng", [224, 88, 135]),
++                                    ("Cam", [221, 91, 61]), ("Đất", [155, 73, 68]),
++                                    ("Nude", [175, 109, 107]),
++                                ] {
++                                    if ui.add(egui::Button::new(label)
++                                        .fill(Color32::from_rgb(rgb[0], rgb[1], rgb[2]))).clicked() {
++                                        lip = rgb;
++                                        ui.data_mut(|d| d.insert_temp(lip_id, lip));
++                                    }
++                                }
++                            });
++                            let color = format!("#{:02X}{:02X}{:02X}", lip[0], lip[1], lip[2]);
++                            if ui.add_enabled(has_pixels, egui::Button::new("💄 Áp dụng màu son đã chọn")).clicked() {
++                                photo_ai_apply_effect(app, json!({"effect":"lipstick", "lipColor":color,
++                                    "strength":strength, "target":"pixels"}));
++                            }
++                            photo_ai_tile_group(app, ui, "TRANG ĐIỂM", &[
++                                ("Màu mắt", "tool-eye-color", "eyeColor"),
++                                ("Má hồng", "tool-blush", "blush"),
++                                ("Màu da", "tool-skin-tone", "skinTone"),
++                            ], selected, has_pixels, strength, &color);
++                            ui.small("Mac tự tìm viền môi; nếu không nhận diện được, khoanh riêng vùng môi bằng Lasso.");
++                        });
++                        ui.collapsing("Tóc và trang phục", |ui| {
++                            let color = format!("#{:02X}{:02X}{:02X}", lip[0], lip[1], lip[2]);
++                            ui.small("Khoanh vùng cần chỉnh bằng Lasso trước khi áp dụng.");
++                            photo_ai_tile_group(app, ui, "TÓC VÀ TRANG PHỤC", &[
++                                ("Tóc con", "tool-hair", "flyawayHair"),
++                                ("Mịn áo", "tool-fabric", "fabricSmooth"),
++                                ("Kéo chân", "tool-legs", "legLength"),
++                            ], selected, has_pixels, strength, &color);
++
++                            ui.separator();
++                            ui.add_enabled(false, egui::Button::new("Đổi quần áo tự động · chưa có"));
++                            ui.add_enabled(false, egui::Button::new("Làm trắng răng AI · chưa có"));
++                        });
+                     }
+                     1 => {
+-                        ui.heading("Chỉnh khuôn mặt");
+-                        ui.group(|ui| {
+-                            ui.strong("XÓA MỤN · NHẬN DIỆN MẶT TRÊN MAC");
+-                            let key = egui::Id::new("photo-ai-studio-acne-sensitivity");
+-                            let mut sensitivity = ui.data(|d| d.get_temp::<f32>(key)).unwrap_or(88.0);
+-                            ui.add(egui::Slider::new(&mut sensitivity, 55.0..=100.0)
+-                                .text("Độ nhạy"));
+-                            ui.data_mut(|d| d.insert_temp(key, sensitivity));
+-                            if ui.add_enabled(has_pixels,
+-                                egui::Button::new("✦ Xóa mụn AI (giữ mắt / môi)")).clicked() {
+-                                crate::photo_ai_feedback::run(app, "paint.aiAutoRetouch",
+-                                    json!({"mode":"skinOnly","blemishOnly":true,
+-                                        "sensitivity":sensitivity,"strength":strength,
+-                                        "protectLips":true,"protectEyes":true,"target":"pixels"}),
+-                                    "Xóa mụn an toàn");
+-                            }
+-                            ui.small("Nếu chưa sạch, tăng độ nhạy hoặc chọn Cọ xóa mụn để chấm từng nốt. Không sửa trực tiếp môi / mắt.");
+-                        });
+-                        photo_ai_tile_group(app, ui, "DA VÀ MẮT", &[
+-                            ("Cọ xóa mụn", "tool-spot", "spotBrush"),
+-                            ("Mịn da", "tool-smooth", "skinSmooth"),
+-                            ("Giảm thâm", "tool-undereye", "underEye"),
+-                            ("Làm sáng", "tool-bright", "brighten"),
+-                        ], selected, has_pixels, strength, "#B43B59");
+-                        photo_ai_tile_group(app, ui, "TẠO HÌNH KHUÔN MẶT", &[
+-                            ("Thon mặt", "tool-face", "faceSlim"),
+-                            ("Đánh khối", "tool-contour", "contour"),
+-                            ("Nếp mí", "tool-eyelid", "eyelid"),
+-                        ], selected, has_pixels, strength, "#B43B59");
+-                        ui.small("Các công cụ thay đổi hình dáng yêu cầu tự khoanh vùng. Không phải AI nhận diện hình học khuôn mặt tự động.");
+-                    }
+-                    2 => {
+-                        ui.heading("Làm đẹp tự nhiên");
+-                        let lip_id = egui::Id::new("photo-ai-studio-lip-colour");
+-                        let mut lip = ui.data(|d| d.get_temp::<[u8;3]>(lip_id)).unwrap_or([180,59,89]);
+-                        ui.horizontal(|ui| {
+-                            ui.label("Màu trang điểm");
+-                            crate::widgets::color_edit_button_srgb(ui, &mut lip);
+-                        });
+-                        ui.data_mut(|d| d.insert_temp(lip_id, lip));
+-                        ui.horizontal_wrapped(|ui| {
+-                            for (label, rgb) in [
+-                                ("Đỏ", [197, 36, 61]), ("Hồng", [224, 88, 135]),
+-                                ("Cam", [221, 91, 61]), ("Đất", [155, 73, 68]),
+-                                ("Nude", [175, 109, 107]),
+-                            ] {
+-                                if ui.add(egui::Button::new(label)
+-                                    .fill(Color32::from_rgb(rgb[0], rgb[1], rgb[2]))).clicked() {
+-                                    lip = rgb;
+-                                    ui.data_mut(|d| d.insert_temp(lip_id, lip));
+-                                }
+-                            }
+-                        });
+-                        let color = format!("#{:02X}{:02X}{:02X}", lip[0], lip[1], lip[2]);
+-                        if ui.add_enabled(has_pixels, egui::Button::new("💄 Áp dụng màu son đã chọn")).clicked() {
+-                            photo_ai_apply_effect(app, json!({"effect":"lipstick", "lipColor":color,
+-                                "strength":strength, "target":"pixels"}));
+-                        }
+-                        photo_ai_tile_group(app, ui, "TRANG ĐIỂM", &[
+-                            ("Màu mắt", "tool-eye-color", "eyeColor"),
+-                            ("Má hồng", "tool-blush", "blush"),
+-                            ("Màu da", "tool-skin-tone", "skinTone"),
+-                        ], selected, has_pixels, strength, &color);
+-                        photo_ai_tile_group(app, ui, "TÓC VÀ TRANG PHỤC", &[
+-                            ("Tóc con", "tool-hair", "flyawayHair"),
+-                            ("Mịn áo", "tool-fabric", "fabricSmooth"),
+-                            ("Kéo chân", "tool-legs", "legLength"),
+-                        ], selected, has_pixels, strength, &color);
+-                        ui.colored_label(Color32::from_rgb(123, 215, 235), "Son môi: chọn màu ở trên → bấm Áp dụng màu son đã chọn. Apple Vision tìm viền môi (Mac).");
+-                        ui.small("Nếu Vision không nhận diện được môi, hãy khoanh riêng vùng môi bằng Lasso (L). Các công cụ khác vẫn cần vùng chọn.");
+-                        ui.separator();
+-                        ui.add_enabled(false, egui::Button::new("Đổi quần áo tự động · chưa có"));
+-                        ui.add_enabled(false, egui::Button::new("Làm trắng răng AI · chưa có"));
+-                    }
+-                    3 => {
+-                        ui.heading("Kho màu · preset Việt Nam");
+-                        photo_ai_studio_presets(app, ui, has_pixels, strength);
+-                        ui.separator();
+-                        ui.collapsing("Chỉnh màu Pro", |ui| photo_ai_pro_grade_panel(app, ui, has_pixels, strength));
+-                        photo_ai_pro_hsl_panel(app, ui, has_pixels, strength);
+-                    }
+-                    _ => {
+-                        ui.heading("Hiệu ứng và công cụ");
+-                        ui.small("Những công cụ chạy trên ảnh thực tế:");
+-                        for (label, effect) in [("Tăng nét", "proSharpen"), ("Làm sáng", "brighten")] {
+-                            if ui.add_enabled(has_pixels, egui::Button::new(label)).clicked() {
+-                                photo_ai_apply_effect(app, json!({"effect":effect,
+-                                    "amount":strength,"strength":strength,"target":"pixels"}));
+-                            }
+-                        }
+-                        ui.separator();
+-                        ui.strong("HIỆU ỨNG ẢNH THẬT · CÓ HOÀN TÁC");
+-                        ui.small("Tạo mưa, tuyết, bokeh hoặc ánh sáng trên ảnh hiện tại. Hiệu ứng đồ họa, không phải AI tạo sinh.");
+                         let effects = [
+                             ("Mưa", "weather-rain", "rainOverlay"),
+                             ("Tuyết", "weather-snow", "snowOverlay"),
+@@ -2374,8 +2377,20 @@
+                                 }
+                             }
+                         });
+-                        ui.separator();
+-                        ui.small("Các công cụ AI tạo sinh chưa có mô hình xử lý:");
++                    }
++                    2 => {
++                        ui.heading("Preset màu");
++                        photo_ai_studio_presets(app, ui, has_pixels, strength);
++                        ui.collapsing("Chỉnh màu nâng cao", |ui| {
++                            photo_ai_pro_grade_panel(app, ui, has_pixels, strength);
++                            photo_ai_pro_hsl_panel(app, ui, has_pixels, strength);
++                        });
++                        if ui.button("Mở công cụ gốc ↗").clicked() {
++                            ui.ctx().data_mut(|d| d.insert_temp(egui::Id::new("photo-ai-studio-mode"), false));
++                            ui.ctx().request_repaint();
++                        }
++                    }
++                    _ => {
+                         for label in ["Đổi nền AI · chưa hỗ trợ", "Xóa người AI · chưa hỗ trợ",
+                             "Đổi quần áo AI · chưa hỗ trợ", "Tạo ảnh AI · chưa hỗ trợ"] {
+                             ui.add_enabled(false, egui::Button::new(label));
+@@ -2384,13 +2399,10 @@
+                 }
+                 ui.separator();
+                 ui.horizontal(|ui| {
+-                    if ui.button("↶ Hoàn tác").clicked() {
+-                        if let Err(e) = app.run("edit.undo", json!({})) {
+-                            app.ui.status = e;
+-                            app.ui.status_error = true;
+-                        }
++                    let can_undo = app.session.active().is_some_and(|st| st.history.can_undo());
++                    if ui.add_enabled(can_undo, egui::Button::new("↶ Hoàn tác")).clicked() {
++                        crate::photo_ai_feedback::run(app, "edit.undo", json!({}), "Hoàn tác");
+                     }
+-                    ui.small("⌘Z để hoàn tác");
+                 });
+             });
+     });
+@@ -2401,7 +2413,19 @@
+ /// AI generative services without models remain visibly disabled.
+ pub(crate) fn photo_ai_studio_looks_strip(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
+     if !photo_ai_studio_active(ui.ctx()) { return; }
+-    let t = Tokens::get(ui.ctx());
++    let dashboard_key = egui::Id::new("photo-ai-dashboard-expanded");
++    let mut expanded = ui.ctx().data(|d| d.get_temp::<bool>(dashboard_key)).unwrap_or(false);
++    egui::Panel::bottom("photo-ai-dashboard-toggle").exact_size(32.0).show(ui, |ui| {
++        ui.horizontal(|ui| {
++            if ui.small_button(if expanded { "Thu gọn công cụ nhanh" } else { "Mở công cụ nhanh" }).clicked() {
++                expanded = !expanded;
++                ui.ctx().data_mut(|d| d.insert_temp(dashboard_key, expanded));
++            }
++            ui.small("Sáng tạo · Preset màu · Chuyên sâu");
++        });
++    });
++    if !expanded { return; }
++
+     let pixel_target = crate::canvas::paint_target(app) == json!("pixels");
+     let has_pixels = pixel_target && app.session.active().is_some_and(|st|
+         st.active_layer.and_then(|id| st.doc.layer(id))
+@@ -2415,7 +2439,7 @@
+         .show(ui,|ui|{
+             egui::ScrollArea::horizontal().id_salt("photo-ai-studio-dashboard-scroll")
+                 .show(ui,|ui|{
+-                    ui.horizontal(|ui|{
++                    ui.horizontal_top(|ui|{
+                         ui.spacing_mut().item_spacing.x=8.0;
+                         let available=ui.ctx().content_rect().width();
+                         let section_width=((available - 44.0)/4.0).max(246.0);
+@@ -2442,6 +2466,7 @@
+                                 .stroke(Stroke::new(1.0,Color32::from_rgb(35,73,94)))
+                                 .corner_radius(egui::CornerRadius::same(8))
+                                 .show(ui,|ui|{
++                                  ui.vertical(|ui| {
+                                     ui.set_min_width(section_width-18.0);
+                                     ui.set_max_width(section_width-18.0);
+                                     ui.label(RichText::new(category).strong().size(12.0)
+@@ -2473,6 +2498,7 @@
+                                                 if (i+1)%2==0 {ui.end_row();}
+                                             }
+                                         });
++                                  });
+                                 });
+                         }
+                     });
+@@ -7667,6 +7693,55 @@
+ #[cfg(test)]
+ mod photo_ai_studio_layout_smoke_tests {
+     use super::*;
++    use egui_kittest::{Harness, kittest::Queryable};
++
++    fn router_harness(app: PhotocraftApp) -> Harness<'static, PhotocraftApp> {
++        let mut ready = false;
++        let mut h = Harness::builder().with_size(vec2(350.0, 1100.0))
++            .with_step_dt(1.0 / 60.0).build_ui_state(move |ui, app: &mut PhotocraftApp| {
++                if !ready {
++                    PhotocraftApp::setup_context(ui.ctx(), crate::theme::ThemeKind::Studio);
++                    ready = true;
++                    return;
++                }
++                photo_ai_studio_body(app, ui);
++            }, app);
++        h.run_steps(4);
++        h
++    }
++
++    #[test]
++    fn studio_retouch_parameters_open_only_when_requested() {
++        let app = PhotocraftApp::new(photocraft_engine::Session::new(), crate::Services::default());
++        let mut h = router_harness(app);
++        assert!(h.query_by_label("Mở ảnh để bắt đầu chỉnh sửa.").is_some());
++        assert!(h.query_by_role_and_label(egui::accesskit::Role::Slider, "Độ nhạy").is_none());
++        assert!(h.query_by_label("Màu trang điểm").is_none());
++        h.get_by_label("Xóa mụn và chăm sóc da").click();
++        h.run_steps(20);
++        assert!(h.query_by_role_and_label(egui::accesskit::Role::Slider, "Độ nhạy").is_some());
++        assert!(h.query_by_label("Màu trang điểm").is_none());
++        h.get_by_label("Xóa mụn và chăm sóc da").click();
++        h.run_steps(20);
++        assert!(h.query_by_role_and_label(egui::accesskit::Role::Slider, "Độ nhạy").is_none());
++        h.get_by_label("Son môi và trang điểm").click();
++        h.run_steps(20);
++        assert!(h.query_by_label("Màu trang điểm").is_some());
++        assert!(h.query_by_role_and_label(egui::accesskit::Role::Slider, "Độ nhạy").is_none());
++        assert!(h.state().session.active().is_none(), "view changes never create a document");
++    }
++
++    #[test]
++    fn studio_mask_target_explains_why_pixel_actions_are_disabled() {
++        let mut app = PhotocraftApp::new(photocraft_engine::Session::new(), crate::Services::default());
++        app.run("file.new", json!({"width":32,"height":32})).unwrap();
++        app.session.active_mut().unwrap().channel_view.target =
++            photocraft_engine::channel_cmds::ChannelTarget::LayerMask;
++        let h = router_harness(app);
++        assert!(h.query_by_label("Đang chọn mặt nạ hoặc kênh màu. Chọn thumbnail lớp ảnh trong Layers để chỉnh pixel.").is_some());
++        assert!(h.query_by_label("Mở ảnh").is_none());
++    }
++
+     #[test]
+     fn every_studio_tab_and_dashboard_renders_without_an_open_document() {
+         let ctx=egui::Context::default();
+@@ -7675,12 +7750,18 @@
+         ctx.data_mut(|d|d.insert_temp(egui::Id::new("photo-ai-studio-mode"),true));
+         for tab in 0usize..5 {
+             ctx.data_mut(|d|d.insert_temp(egui::Id::new("photo-ai-studio-tab"),tab));
+-            let out=ctx.run_ui(egui::RawInput::default(),|ui|{
++            let mut out=ctx.run_ui(egui::RawInput::default(),|ui|{
+                 photo_ai_studio_looks_strip(&mut app,ui);
+                 photo_ai_studio_toolbar(&mut app,ui);
+                 photo_ai_studio_dock(&mut app,ui);
+             });
+-            assert!(!out.shapes.is_empty(),"Studio tab {tab} did not paint");
+-        }
+-    }
+-}
++            let painted = !out.shapes.is_empty();
++            // Headless layout tests deliberately discard uploads; a renderer consumes
++            // them in the snapshot example. Never drop unapplied TexturesDelta.
++            out.textures_delta.clear();
++            assert!(painted,"Studio tab {tab} did not paint");
++            assert!(ctx.data(|d| d.get_temp::<egui::TextureHandle>(egui::Id::new("photo-ai-router-mark-texture"))).is_some(),
++                "Router PNG must decode instead of displaying a broken-image warning");
++        }
++    }
++}
+--- a/crates/ui-egui/src/canvas.rs
++++ b/crates/ui-egui/src/canvas.rs
+@@ -2703,14 +2703,12 @@
+     ui.scope_builder(egui::UiBuilder::new().max_rect(card), |ui| {
+         ui.vertical_centered(|ui| {
+             ui.horizontal(|ui| {
+-                let title = ui.painter().layout_no_wrap(tl!("PhotoCraft").into(), crate::theme::semibold(38.0), t.text);
+-                let by = ui.painter().layout_no_wrap(tl!("open source").into(), egui::FontId::proportional(13.0), t.text_faint);
+-                let total = title.size().x + by.size().x + 10.0;
++                let title = ui.painter().layout_no_wrap("Photo AI Studio".into(), crate::theme::semibold(38.0), t.text);
++                let total = title.size().x;
+                 ui.add_space(((card.width() - total) / 2.0).max(0.0));
+                 let (r, _) = ui.allocate_exact_size(title.size(), Sense::hover());
+                 ui.painter().galley(r.min, title, t.text);
+-                let (r2, _) = ui.allocate_exact_size(egui::vec2(by.size().x + 10.0, r.height()), Sense::hover());
+-                ui.painter().galley(egui::pos2(r2.left() + 10.0, r.bottom() - by.size().y - 8.0), by, t.text_faint);
++
+             });
+             ui.add_space(6.0);
+             ui.label(egui::RichText::new(tl!("Create a new document or open an existing file.")).color(t.text_dim).size(14.0));
+@@ -2739,10 +2737,7 @@
+                 ui.add_space(22.0);
+                 home_recent(app, ui, &recent);
+             }
+-            ui.add_space(26.0);
+-            crate::links::discord_button(app, ui, 190.0);
+-            ui.add_space(10.0);
+-            crate::links::link_row(app, ui);
++
+         });
+     });
+ }

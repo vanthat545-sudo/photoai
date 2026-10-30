@@ -1,0 +1,116 @@
+name: PhotoAI macOS M1 validation
+on:
+  push:
+    branches: [ci/macos-v07184]
+    paths: ['.github/workflows/photoai-macos.yml', 'PhotoAI-Studio-v0.7.18.4-Mac-Finder-TEST.zip', 'patches/**', 'ci/feature_report.py', 'ci/package_validation.py']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: photoai-macos-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  macos:
+    runs-on: macos-15
+    timeout-minutes: 90
+    env:
+      CARGO_BUILD_JOBS: 2
+      CARGO_TERM_COLOR: never
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract bundled source
+        run: |
+          set -euo pipefail
+          mkdir -p package results
+          unzip -q PhotoAI-Studio-v0.7.18.4-Mac-Finder-TEST.zip -d package
+          echo "SOURCE=$GITHUB_WORKSPACE/package/Cai-PhotoAI-Studio.app/Contents/Resources/Source" >> "$GITHUB_ENV"
+          { sw_vers; uname -m; xcodebuild -version; } | tee results/macos.txt
+          test "$(uname -m)" = arm64
+      - name: Apply Studio UI corrections
+        run: |
+          set -euo pipefail
+          cd "$SOURCE"
+          git apply --check "$GITHUB_WORKSPACE/patches/studio-ui.patch"
+          git apply "$GITHUB_WORKSPACE/patches/studio-ui.patch"
+          git apply --check "$GITHUB_WORKSPACE/patches/retouch-eye-guards.patch"
+          git apply "$GITHUB_WORKSPACE/patches/retouch-eye-guards.patch"
+      - name: Install required Rust
+        run: |
+          rustup toolchain install 1.95.0 --profile minimal
+          rustup default 1.95.0
+          rustc --version
+      - name: Installer package checks
+        run: |
+          set -euo pipefail
+          cd package
+          python3 TEST-FINDER-INSTALLER.py 2>&1 | tee ../results/finder-tests.txt
+          python3 TEST-STARTER-PACKAGE.py 2>&1 | tee ../results/starter-tests.txt
+      - name: Engine unit tests
+        id: engine
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          cd "$SOURCE"
+          cargo test --locked -p photocraft-engine --lib 2>&1 | tee "$GITHUB_WORKSPACE/results/engine-tests.txt"
+      - name: UI unit tests
+        id: ui
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          cd "$SOURCE"
+          cargo test --locked -p photocraft-ui-egui --lib 2>&1 | tee "$GITHUB_WORKSPACE/results/ui-tests.txt"
+      - name: Build native application and Vision helper
+        id: build
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          cd "$SOURCE"
+          mkdir -p target/debug
+          swiftc -framework Vision -framework AppKit -framework CoreGraphics native/macos/PhotoAIVision.swift -o target/debug/PhotoAIVision 2>&1 | tee "$GITHUB_WORKSPACE/results/vision-build.txt"
+          cargo build --locked -p photocraft 2>&1 | tee "$GITHUB_WORKSPACE/results/app-build.txt"
+      - name: Render actual UI offscreen
+        id: snapshot
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          cd "$SOURCE"
+          cargo run --locked -p photocraft-ui-egui --example snapshot -- --out "$GITHUB_WORKSPACE/results/photoai-ui-1440x900.png" --size 1440x900 --scale 1 --safe-gpu 2>&1 | tee "$GITHUB_WORKSPACE/results/ui-render.txt"
+      - name: Collect binaries
+        if: always()
+        run: |
+          if [ -f "$SOURCE/target/debug/photocraft" ]; then
+            cp "$SOURCE/target/debug/photocraft" results/
+          fi
+          if [ -f "$SOURCE/target/debug/PhotoAIVision" ]; then
+            cp "$SOURCE/target/debug/PhotoAIVision" results/
+          fi
+      - name: Write feature evidence report
+        if: always()
+        run: python3 ci/feature_report.py
+      - name: Package internal standalone app
+        if: ${{ steps.engine.outcome == 'success' && steps.ui.outcome == 'success' && steps.build.outcome == 'success' && steps.snapshot.outcome == 'success' }}
+        run: python3 ci/package_validation.py
+      - name: Upload logs, UI capture and available binaries
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: photoai-v07184-macos-arm64-results
+          path: results/
+          retention-days: 14
+      - name: Enforce validation results
+        if: always()
+        env:
+          ENGINE: ${{ steps.engine.outcome }}
+          UI: ${{ steps.ui.outcome }}
+          BUILD: ${{ steps.build.outcome }}
+          SNAPSHOT: ${{ steps.snapshot.outcome }}
+        run: |
+          printf 'Engine: %s\nUI tests: %s\nNative build: %s\nUI render: %s\n' "$ENGINE" "$UI" "$BUILD" "$SNAPSHOT" >> "$GITHUB_STEP_SUMMARY"
+          test "$ENGINE" = success
+          test "$UI" = success
+          test "$BUILD" = success
+          test "$SNAPSHOT" = success
+
