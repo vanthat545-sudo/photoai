@@ -94,10 +94,11 @@ def main():
         command('paint.photoAiEffects', dict(effect='preset', preset='invalid-look', strength=70), expected=False)
         assert save('invalid-unchanged.png') == baseline, 'Rejected command modified image'
         checks.append('Invalid preset reports failure without modifying image')
-        no_face = command('paint.aiAutoRetouch', {}, expected=False)
+        no_face = command('paint.aiAutoRetouch')
+        assert no_face.get('faces') == 0 and no_face.get('noChange') is True, 'No-face retouch must report no change'
         (root / 'no-face-response.json').write_text(json.dumps(no_face, ensure_ascii=False, indent=2))
         assert save('no-face-unchanged.png') == baseline, 'No-face retouch modified image'
-        checks.append('Retouch rejects a non-portrait without modifying pixels')
+        checks.append('Retouch reports no face and no change without modifying pixels')
         save('export.jpg')
         assert (root / 'export.jpg').read_bytes().startswith(b'\xff\xd8'), 'JPEG signature missing'
         call('app.open', dict(path='export.jpg'))
