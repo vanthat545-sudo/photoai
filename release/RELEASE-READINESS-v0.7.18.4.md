@@ -13,7 +13,7 @@
 - [x] Kiểm thử ứng dụng đóng gói tối thiểu (nhập PNG/JPEG, preset, undo, xuất, khởi động) từng đạt tại https://github.com/vanthat545-sudo/photoai/actions/runs/41025333487.
 - [x] Xác định lỗi CI mới nhất: runner dùng Python 3.14, `scikit-image==0.25.2` không cài đặt được.
 - [x] Chỉnh workflow để dùng Python 3.12 và artifact từ run 41025441660.
-- [ ] Lượt kiểm thử đóng gói mới sau sửa Python phải đạt đầy đủ; đối chiếu chính xác log và kết quả trước khi đánh dấu.
+- [x] Lượt kiểm thử đóng gói mới sau sửa Python đã đạt đầy đủ: https://github.com/vanthat545-sudo/photoai/actions/runs/41060980844 (bao gồm preset/undo/PNG/JPEG, nhận diện và retouch chân dung mẫu, bảo vệ mắt và miệng, ảnh chụp ứng dụng chạy thật). Chất lượng trên nhiều ảnh thật vẫn cần nghiệm thu.
 - [ ] Kiểm thử mở/cài bản `.app` trên MacBook M1 thực tế.
 
 ## Kiểm thử sản phẩm bắt buộc trước khi phát hành chính thức
