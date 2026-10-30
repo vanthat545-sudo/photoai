@@ -23,7 +23,10 @@ jobs:
           mkdir -p results
           ditto -x -k validated-build/PhotoAI-Retouch-Validation-Mac-ARM64.zip results
       - name: Run packaged app import edit undo export checks
-        run: python3 ci/standalone_smoke.py results/PhotoAI-Retouch-Validation.app
+        run: |
+          python3 -m venv .smoke-venv
+          .smoke-venv/bin/pip install Pillow==11.3.0 scikit-image==0.25.2
+          .smoke-venv/bin/python ci/standalone_smoke.py results/PhotoAI-Retouch-Validation.app
       - uses: actions/upload-artifact@v4
         if: always()
         with:

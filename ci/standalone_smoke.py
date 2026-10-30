@@ -103,6 +103,39 @@ def main():
         assert (root / 'export.jpg').read_bytes().startswith(b'\xff\xd8'), 'JPEG signature missing'
         call('app.open', dict(path='export.jpg'))
         checks.append('JPEG export and reimport')
+        # Public-domain NASA astronaut sample distributed with scikit-image.
+        # Keep personal user photos out of public CI artifacts.
+        from skimage import data as samples
+        from PIL import Image
+        portrait = Image.fromarray(samples.astronaut()).convert('RGBA')
+        portrait.save(root / 'portrait.png')
+        vision = subprocess.run([str(helper)], input=struct.pack('<II', *portrait.size) + portrait.tobytes(),
+                                capture_output=True, timeout=100, check=True)
+        landmarks = json.loads(vision.stdout)
+        assert landmarks.get('faces'), 'Vision did not recognize the reference portrait'
+        call('app.open', dict(path='portrait.png'))
+        save('portrait-before.png')
+        result = command('paint.aiAutoRetouch', dict(mode='portrait', strength=70))
+        assert result.get('faces', 0) > 0, 'Retouch failed to recognize reference face'
+        save('portrait-after.png')
+        before = Image.open(root / 'portrait-before.png').convert('RGBA')
+        after = Image.open(root / 'portrait-after.png').convert('RGBA')
+        assert before.tobytes() != after.tobytes(), 'Portrait retouch changed no pixels'
+        for face in landmarks['faces']:
+            for feature in ('leftEye', 'rightEye', 'mouth'):
+                box = face.get(feature)
+                assert box, f'No {feature} landmarks on reference portrait'
+                # Check the interior of each detected feature, independent of engine masks.
+                import math
+                bounds = (math.ceil(box[0]*before.width), math.ceil(box[1]*before.height),
+                          math.floor(box[2]*before.width), math.floor(box[3]*before.height))
+                assert before.crop(bounds).tobytes() == after.crop(bounds).tobytes(), f'Retouch changed {feature}'
+        (root / 'portrait-result.json').write_text(json.dumps(result, ensure_ascii=False, indent=2))
+        checks.append('Reference portrait recognized and retouched; eye and mouth pixels preserved')
+        command('edit.undo')
+        save('portrait-undo.png')
+        assert Image.open(root / 'portrait-undo.png').convert('RGBA').tobytes() == before.tobytes(), 'Portrait undo mismatch'
+        checks.append('Portrait retouch undo restores all pixels')
         call('ui.screenshot', dict(path='running-app.png'))
         checks.append('Capture actual running native app')
         call('app.quit')

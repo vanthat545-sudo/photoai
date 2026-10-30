@@ -2,10 +2,13 @@ name: PhotoAI macOS M1 validation
 on:
   push:
     branches: [ci/macos-v07184]
-    paths: ['.github/workflows/photoai-macos.yml', 'PhotoAI-Studio-v0.7.18.4-Mac-Finder-TEST.zip', 'patches/**', 'ci/**']
+    paths: ['.github/workflows/photoai-macos.yml', 'PhotoAI-Studio-v0.7.18.4-Mac-Finder-TEST.zip', 'patches/**', 'ci/feature_report.py', 'ci/package_validation.py']
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: photoai-macos-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   macos:
     runs-on: macos-15
@@ -110,3 +113,4 @@ jobs:
           test "$UI" = success
           test "$BUILD" = success
           test "$SNAPSHOT" = success
+
