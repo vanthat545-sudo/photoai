@@ -1,0 +1,64 @@
+name: PhotoAI Mac diagnostics
+on:
+  push:
+    paths: ['.github/workflows/photoai-diagnostics.yml', 'PhotoAI-Studio-*.zip']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: macos-15-arm64
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect ZIP without running untrusted installers
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports extracted
+          echo "Runner: $(uname -m)" | tee reports/summary.txt
+          find . -maxdepth 1 -iname 'PhotoAI-Studio-*.zip' -print | tee -a reports/summary.txt
+          python3 - <<'PY'
+          import pathlib,zipfile,stat
+          files=sorted(pathlib.Path('.').glob('PhotoAI-Studio-*.zip'))
+          if not files: raise SystemExit('No PhotoAI ZIP found')
+          with zipfile.ZipFile(files[-1]) as z:
+              bad=z.testzip()
+              if bad: raise ValueError('Corrupt ZIP member: '+bad)
+              entries=z.infolist()
+              with open('reports/archive-tree.txt','w') as f:
+                  for i in entries:
+                      p=pathlib.PurePosixPath(i.filename)
+                      mode=(i.external_attr>>16)&0o170000
+                      if p.is_absolute() or '..' in p.parts or mode==stat.S_IFLNK:
+                          raise ValueError('Unsafe ZIP member: '+i.filename)
+                      f.write(i.filename+'\n')
+              z.extractall('extracted')
+          PY
+          echo '=== Project manifests ===' | tee -a reports/summary.txt
+          find extracted -type f \( -name Package.swift -o -name '*.xcodeproj' -o -name project.pbxproj -o -name Info.plist -o -name '*.command' -o -name '*.sh' \) | head -200 | tee reports/manifests.txt
+          find extracted -type d -name '*.app' | tee reports/apps.txt
+          find extracted -type f -name '*.swift' | head -100 | tee reports/swift-files.txt
+      - name: Validate app bundle and architectures if present
+        shell: bash
+        run: |
+          set -uo pipefail
+          : > reports/app-checks.txt
+          while IFS= read -r app; do
+            echo "APP: $app" | tee -a reports/app-checks.txt
+            /usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist" 2>&1 | tee -a reports/app-checks.txt
+            executable=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist" 2>/dev/null)
+            if [ -n "$executable" ] && [ -f "$app/Contents/MacOS/$executable" ]; then
+              file "$app/Contents/MacOS/$executable" | tee -a reports/app-checks.txt
+              lipo -archs "$app/Contents/MacOS/$executable" 2>&1 | tee -a reports/app-checks.txt
+            fi
+            codesign --verify --deep --strict --verbose=2 "$app" 2>&1 | tee -a reports/app-checks.txt
+          done < reports/apps.txt
+          if [ ! -s reports/apps.txt ]; then echo "No .app bundle found inside ZIP; cannot claim installable app" | tee -a reports/app-checks.txt; fi
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PhotoAI-Mac-diagnostics
+          path: reports/
+          if-no-files-found: warn
